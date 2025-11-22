@@ -1,8 +1,8 @@
-version: "3.7"
 
 services:
   database:
     image: mysql:8.0
+    container_name: database
     platform: linux/amd64
     command:
       - "--default-authentication-plugin=mysql_native_password"
@@ -15,45 +15,28 @@ services:
       - "3306:3306"
     restart: always
 
-  example-c:
-    image: example-c
-    build: images/example-c
-    command: ["./example"]
-    volumes:
-      - ./data:/data
+  mysql-schema:
+    image: mysql-schema
+    build: images/mysql-schema
+    command: ["python", "mysql_schema.py"]
+    depends_on:
+      - database
 
-  example-node:
-    image: example-node
-    build: images/example-node
-    command: ["./example.js"]
-    volumes:
-      - ./data:/data
 
-  example-python:
-    image: example-python
-    build: images/example-python
-    command: ["./example.py"]
+  data-ingest:
+    image: data-ingest
+    build: images/data-ingest
+    command: ["python", "data_ingest.py"]
     volumes:
-      - ./data:/data
+    - ./data:/app/data
+    depends_on:
+      - database
 
-  example-r:
-    image: example-r
-    build: images/example-r
-    command: ["./example.R"]
+  summary-output:
+    image: summary-output
+    build: images/summary-output
+    command: ["python", "summary_output.py"]
     volumes:
-      - ./data:/data
-
-  example-ruby:
-    image: example-ruby
-    build: images/example-ruby
-    command: ["./example.rb"]
-    volumes:
-      - ./data:/data
-
-  example-swift:
-    image: example-swift
-    platform: linux/amd64
-    build: images/example-swift
-    command: ["swift", "run"]
-    volumes:
-      - ./data:/data
+    - ./data:/app/data
+    depends_on:
+      - database
