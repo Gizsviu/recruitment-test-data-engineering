@@ -9,6 +9,7 @@ conxn = mysql_engine.connect()
 ppl = pd.read_csv('data/people.csv')
 places = pd.read_csv('data/places.csv')
 
+
 # Countries
 # Getting unique countries to insert into the countries table
 input_countries = pd.DataFrame({
@@ -27,6 +28,7 @@ input_countries = input_countries[input_countries['country_id'].isna()]
 # Input nonexistent if any
 if not input_countries.empty:
     input_countries[['country_name']].to_sql('countries', con=conxn, if_exists='append', index=False)
+
 
 # Regions
 # Matching the regions to country_id from the countries table
@@ -50,6 +52,7 @@ input_regions = input_regions[input_regions['region_id'].isna()]
 if not input_regions.empty:
     input_regions[['region_name', 'country_id']].to_sql('regions', con=conxn, if_exists='append', index=False)
 
+
 # Cities
 # Matching the cities to country_id from the countries table
 input_cities = places[['county', 'city']].drop_duplicates()
@@ -72,13 +75,33 @@ input_cities = input_cities[input_cities['city_id'].isna()]
 if not input_cities.empty:
     input_cities[['city_id', 'region_id', 'city_name']].to_sql('cities', con=conxn, if_exists='append', index=False)
 
+
 # People
 # Merging city_id from cities table to ppl
 cities = pd.read_sql_table('cities', con=conxn)
 input_ppl = ppl.merge(cities, how='left', left_on=['place_of_birth'], right_on=['city_name'])
 
-# Gathering people born in cities not yet in the db
+# Gathering people born in cities not yet in the db cities table
 new_city = input_ppl[input_ppl['city_id'].isna()]
+
+if not new_city.empty:
+    new_city.to_json('data/new_city.json')
+    raise Warning('There are people in the people.csv with untracked bithplace, please check new_city.json')
+    
+# Some data quality tests with hard and soft requirements:
+def ppl_test(df=input_ppl):
+    soft_required = ['given_name', 'family_name', 'date_of_birth']
+    hard_required = ['place_of_birth']
+
+    missing_soft = df[df[soft_required].isnull().any(axis=1)]
+    if not missing_soft.empty:
+        missing_soft.to_json('data/missing_people_data.json')
+        raise Warning('There are some missing personal data, listed in missing_people_data.json')
+    
+    missing_hard = df[df[hard_required].isnull().any(axis=1)]
+    if not missing_hard.empty:
+        missing_hard.to_json('data/missing_birthplace.json')
+        raise ValueError('You are trying to load data without a birthplace, please check missing_birthplace.json')
 
 # Inseting all people not yet present in the db
 existing_ppl = pd.read_sql_table('people', con=conxn,)
